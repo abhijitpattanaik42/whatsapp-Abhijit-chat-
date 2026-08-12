@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ABHIJIT chat — WhatsApp-style App</title>
+<style>
+  :root{
+    --dark: #075E54;
+    --mid: #128C7E;
+    --accent: #25D366;
+    --bubble-out: #DCF8C6;
+    --bubble-in: #FFFFFF;
+    --bg-chat: #ECE5DD;
+    --bg-app: #ffffff;
+    --bg-panel: #f0f2f5;
+    --text-main: #111b21;
+    --text-dim: #667781;
+    --divider: #e9edef;
+  }
+  
+  html[data-theme="dark"]{
+    --dark: #202c33;
+    --mid: #2a3942;
+    --accent: #00a884;
+    --bubble-out: #005c4b;
+    --bubble-in: #202c33;
+    --bg-chat: #0b141a;
+    --bg-app: #111b21;
+    --bg-panel: #202c33;
+    --text-main: #e9edef;
+    --text-dim: #8696a0;
+    --divider: #2a3942;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    height:100vh;
+    overflow:hidden;
+    background:#0b141a;
+    color:var(--text-main);
+  }
+
+  /* ---------- AUTH SCREEN ---------- */
+  #authScreen{
+    position:fixed; inset:0; z-index:50;
+    background:linear-gradient(160deg, var(--dark), var(--mid));
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .auth-card{
+    background:var(--bg-app); width:100%; max-width:360px; border-radius:14px;
+    padding:28px 26px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  .auth-logo{
+    width:56px; height:56px; border-radius:50%; background:var(--accent);
+    display:flex; align-items:center; justify-content:center; margin:0 auto 14px;
+  }
+  .auth-card h2{ text-align:center; font-size:20px; margin-bottom:4px; color:var(--text-main); }
+  .auth-card p.sub{ text-align:center; color:var(--text-dim); font-size:13px; margin-bottom:20px; }
+  .auth-tabs{ display:flex; background:var(--bg-panel); border-radius:10px; padding:3px; margin-bottom:18px; }
+  .auth-tabs button{
+    flex:1; border:none; background:none; padding:8px; border-radius:8px;
+    font-size:13.5px; font-weight:600; cursor:pointer; color:var(--text-dim);
+  }
+  .auth-tabs button.active{ background:var(--bg-app); color:var(--dark); }
+  html[data-theme="dark"] .auth-tabs button.active{ color:var(--accent); }
+  .auth-field{ margin-bottom:12px; }
+  .auth-field label{ font-size:12px; color:var(--text-dim); display:block; margin-bottom:4px; }
+  .auth-field input{
+    width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--divider);
+    background:var(--bg-app); color:var(--text-main); font-size:14px; outline:none;
+  }
+  .auth-field input:focus{ border-color:var(--accent); }
+  .auth-submit{
+    width:100%; padding:11px; border:none; border-radius:8px; background:var(--accent);
+    color:#fff; font-weight:600; font-size:14.5px; cursor:pointer; margin-top:6px;
+  }
+  .auth-submit:hover{ opacity:.92; }
+  .auth-error{ color:#e05252; font-size:12.5px; margin-top:8px; min-height:14px; text-align:center; }
+
+  #app{
+    display:none;
+    flex-direction:row;
+    height:100vh;
+    max-width:1000px;
+    margin:0 auto;
+    background:var(--bg-app);
+    position:relative;
+    overflow:hidden;
+  }
+  #app.ready{ display:flex; }
+
+  /* ---------- LIST PANE ---------- */
+  #listPane{
+    width:100%;
+    flex-shrink:0;
+    display:flex;
+    flex-direction:column;
+    transition: margin-left .28s ease;
+    background:var(--bg-app);
+  }
+  @media(min-width:760px){
+    #listPane{ width:380px; border-right:1px solid var(--divider); }
+  }
+  .list-header{
+    background:var(--dark);
+    color:#fff;
+    padding:14px 16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-shrink:0;
+  }
+  .list-header h1{ font-size:19px; font-weight:600; letter-spacing:.2px; }
+  .icon-btn{
+    background:none;border:none;color:#fff;opacity:.9;
+    cursor:pointer; padding:6px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .icon-btn:hover{ background:rgba(255,255,255,.14); }
+  .search-wrap{ padding:8px 10px; background:var(--bg-app); border-bottom:1px solid var(--divider); }
+  .search-box{
+    background:var(--bg-panel);
+    border-radius:20px;
+    display:flex;
+    align-items:center;
+    padding:7px 12px;
+    gap:10px;
+  }
+  .search-box input{
+    border:none; background:transparent; outline:none;
+    font-size:14px; width:100%; color:var(--text-main);
+  }
+  .search-box svg{ flex-shrink:0; }
+
+  #chatList{ flex:1; overflow-y:auto; }
+  .chat-row{
+    display:flex; align-items:center; gap:12px;
+    padding:11px 14px;
+    cursor:pointer;
+    border-bottom:1px solid rgba(128,128,128,.08);
+    transition: background .15s;
+  }
+  .chat-row:hover, .chat-row.active{ background:var(--bg-panel); }
+  .avatar{
+    width:48px;height:48px;border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:600; font-size:16px; flex-shrink:0;
+    position:relative;
+  }
+  .avatar .dot{
+    position:absolute; bottom:-2px; right:-2px; width:12px; height:12px;
+    background:var(--accent); border-radius:50%; border:2px solid var(--bg-app);
+  }
+  .chat-info{ flex:1; min-width:0; }
+  .chat-info .row1{ display:flex; justify-content:space-between; align-items:baseline; }
+  .chat-info .name{ font-size:15.5px; color:var(--text-main); font-weight:500; }
+  .chat-info .time{ font-size:12px; color:var(--text-dim); flex-shrink:0; }
+  .chat-info .row2{ display:flex; justify-content:space-between; align-items:center; margin-top:2px; }
+  .chat-info .preview{
+    font-size:13.5px; color:var(--text-dim);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .unread{
+    background:var(--accent); color:#fff; font-size:11.5px; font-weight:700;
+    min-width:20px; height:20px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; padding:0 6px;
+  }
+  .ticks{ margin-right:3px; vertical-align:-2px; }
+
+  /* ---------- CHAT PANE ---------- */
+  #chatPane{
+    position:absolute; top:0; left:100%;
+    width:100%; height:100%;
+    display:flex; flex-direction:column;
+    background:var(--bg-chat);
+    transition: left .28s ease;
+  }
+  @media(min-width:760px){
+    #chatPane{ position:relative; left:0; width:auto; flex:1; }
+  }
+  #app.chat-open #chatPane{ left:0; }
+  #app.chat-open #listPane{ margin-left:-100%; }
+  @media(min-width:760px){
+    #app.chat-open #listPane{ margin-left:0; }
+  }
+
+  .chat-header{
+    background:var(--dark); color:#fff;
+    padding:10px 12px; display:flex; align-items:center; gap:10px;
+    flex-shrink:0;
+  }
+  .chat-header .name{ font-size:15.5px; font-weight:600; }
+  .chat-header .status{ font-size:12px; opacity:.85; }
+  .chat-header .grow{ flex:1; min-width:0; cursor:pointer; }
+  .backBtn{ display:none; }
+  @media(max-width:759px){ .backBtn{ display:flex; } }
+
+  #messages{
+    flex:1; overflow-y:auto; padding:14px 6% 10px;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .bubble{
+    max-width:72%;
+    padding:6px 9px 8px 10px;
+    border-radius:8px;
+    font-size:14.3px;
+    line-height:1.35;
+    position:relative;
+    box-shadow:0 1px 0.5px rgba(0,0,0,.13);
+    margin-bottom:3px;
+    word-wrap:break-word;
+    color:var(--text-main);
+  }
+  .bubble.out{ align-self:flex-end; background:var(--bubble-out); border-top-right-radius:2px; }
+  .bubble.in{ align-self:flex-start; background:var(--bubble-in); border-top-left-radius:2px; }
+  .bubble img.msg-img{ max-width:100%; border-radius:6px; display:block; margin-bottom:4px; }
+  .bubble .file-card{
+    display:flex; align-items:center; gap:8px; background:rgba(128,128,128,.12);
+    padding:8px; border-radius:6px; margin-bottom:4px; min-width:180px;
+  }
+  .bubble .file-card .fname{ font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+  .bubble .file-card .fsize{ font-size:11.5px; color:var(--text-dim); }
+  .bubble .meta{
+    display:flex; justify-content:flex-end; align-items:center; gap:3px;
+    font-size:11px; color:var(--text-dim); margin-top:2px; float:right; margin-left:8px;
+  }
+  .day-divider{
+    align-self:center; background:var(--bg-app); color:var(--text-dim);
+    font-size:12.5px; padding:5px 12px; border-radius:8px;
+    box-shadow:0 1px 0.5px rgba(0,0,0,.1); margin:10px 0; text-transform:uppercase;
+  }
+  .typing-indicator{ align-self:flex-start; background:var(--bubble-in); border-radius:8px; padding:9px 13px; display:flex; gap:4px; }
+  .typing-indicator span{ width:6px; height:6px; border-radius:50%; background:var(--text-dim); animation:blink 1.2s infinite; display:block; }
+  .typing-indicator span:nth-child(2){ animation-delay:.2s; }
+  .typing-indicator span:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink{ 0%,80%,100%{ opacity:.3; } 40%{ opacity:1; } }
+
+  .composer{
+    display:flex; align-items:center; gap:6px;
+    padding:8px 10px; background:var(--bg-panel); flex-shrink:0; position:relative;
+  }
+  .composer input{
+    flex:1; border:none; outline:none; border-radius:22px;
+    padding:11px 16px; font-size:14.5px; background:var(--bg-app); color:var(--text-main);
+  }
+  .send-btn{
+    background:var(--dark); color:#fff; border:none; border-radius:50%;
+    width:42px; height:42px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; flex-shrink:0;
+  }
+  .send-btn:hover{ background:var(--mid); }
+
+  .empty-state{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; color:var(--text-dim); background:var(--bg-panel); text-align:center; gap:10px; padding:20px;
+  }
+  .empty-state svg{ opacity:.5; }
+
+  /* emoji picker */
+  .emoji-panel{
+    position:absolute; bottom:56px; left:10px; background:var(--bg-app);
+    border:1px solid var(--divider); border-radius:10px; padding:8px;
+    display:grid; grid-template-columns:repeat(7,1fr); gap:2px; box-shadow:0 4px 20px rgba(0,0,0,.2);
+    z-index:20;
+  }
+  .emoji-panel button{
+    border:none; background:none; font-size:20px; cursor:pointer; padding:5px; border-radius:6px;
+  }
+  .emoji-panel button:hover{ background:var(--bg-panel); }
+
+  /* menu dropdown */
+  .menu-dropdown{
+    position:absolute; top:44px; right:8px; background:var(--bg-app); color:var(--text-main);
+    border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.25); z-index:30; min-width:170px; overflow:hidden;
+  }
+  .menu-dropdown button{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:11px 14px;
+    border:none; background:none; font-size:14px; color:var(--text-main); cursor:pointer;
+  }
+  .menu-dropdown button:hover{ background:var(--bg-panel); }
+  .hidden{ display:none !important; }
+
+  #toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:#111b21; color:#fff; padding:10px 18px; border-radius:8px; font-size:13.5px;
+    box-shadow:0 4px 20px rgba(0,0,0,.3); z-index:100; opacity:0; transition:opacity .25s; pointer-events:none;
+  }
+  #toast.show{ opacity:1; }
+
+  #messages::-webkit-scrollbar, #chatList::-webkit-scrollbar{ width:6px; }
+  #messages::-webkit-scrollbar-thumb, #chatList::-webkit-scrollbar-thumb{ background:rgba(128,128,128,.25); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<!-- ================= AUTH SCREEN ================= -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+    </div>
+    <h2>ABHIJIT chat</h2>
+    <p class="sub">Simple. Secure. Reliable messaging.</p>
+    <div class="auth-tabs">
+      <button id="tabLogin" class="active">Log in</button>
+      <button id="tabSignup">Sign up</button>
+    </div>
+    <div class="auth-field" id="fieldName">
+      <label>Your name</label>
+      <input id="authName" type="text" placeholder="e.g. Jordan Lee">
+    </div>
+    <div class="auth-field">
+      <label>Phone or email</label>
+      <input id="authContact" type="text" placeholder="you@example.com">
+    </div>
+    <div class="auth-field">
+      <label>Password</label>
+      <input id="authPass" type="password" placeholder="••••••••">
+    </div>
+    <button class="auth-submit" id="authSubmit">Log in</button>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
+
+<!-- ================= MAIN APP ================= -->
+<div id="app">
+  <input type="file" id="fileInput" class="hidden" accept="image/*,.pdf,.doc,.docx,.txt">
+
+  <!-- LIST PANE -->
+  <div id="listPane">
+    <div class="list-header">
+      <h1>ABHIJIT CHAT</h1>
+      <div style="display:flex; gap:4px; position:relative;">
+        <button class="icon-btn" id="themeToggle" title="Toggle dark mode">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button class="icon-btn" id="menuBtn" title="Menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+        </button>
+        <div class="menu-dropdown hidden" id="menuDropdown">
+          <button id="menuProfile">👤 <span id="menuName">Profile</span></button>
+          <button id="menuNotify">🔔 Enable notifications</button>
+          <button id="menuLogout">🚪 Log out</button>
+        </div>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search or start a new chat">
+      </div>
+    </div>
+    <div id="chatList"></div>
+  </div>
+
+  <!-- CHAT PANE -->
+  <div id="chatPane">
+    <div class="empty-state" id="emptyState">
+      <svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <div>Select a chat to start messaging</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   STATE
+   ============================================================ */
+const EMOJIS = ["😀","😂","😍","👍","🙏","🎉","🔥","❤️","😢","😮","😎","🤔","👏","🙌","💯","✅","🎂","☕","🍕","😴","🥳","👀","💡","🚀"];
+const colors = ["#F56C6C","#EE9A44","#4FA3D1","#7E6BC9","#2FAE7B","#D162A4","#5C8DEA"];
+let currentUser = null;
+let authMode = "login"; // "login" | "signup"
+let activeId = null;
+let theme = "light";
+
+const contacts = [
+  { id:1, name:"ABHIJIT", status:"online", online:true, unread:2,
+    messages:[
+      {from:"in", type:"text", text:"Hey! WELCOME  TO ABHIJIT CHAT", time:"9:12 AM"},
+      {from:"out", type:"text", text:"Just opened them now, looking great so far 🎨", time:"9:14 AM"},
+      {from:"in", type:"text", text:"Awesome, let me know what you think of the header treatment", time:"9:15 AM"},
+    ]},
+  { id:2, name:"AMAN", status:"last seen today at 8:02 AM", online:false, unread:0,
+    messages:[
+      {from:"in", type:"text", text:"Don't forget to call your grandmother this weekend", time:"Yesterday"},
+      {from:"out", type:"text", text:"I will! Adding it to my calendar now", time:"Yesterday"},
+    ]},
+  { id:3, name:"SOUMYA", status:"online", online:true, unread:0,
+    messages:[
+      {from:"out", type:"text", text:"Are we still on for lunch tomorrow?", time:"Mon"},
+      {from:"in", type:"text", text:"Yes! 1pm at the usual place works for me", time:"Mon"},
+    ]},
+  { id:4, name:"FAMILY", status:"5 members", online:false, unread:5,
+    messages:[
+      {from:"in", type:"text", text:"Who's bringing dessert for Sunday dinner?", time:"11:03 AM"},
+      {from:"in", type:"text", text:"I can bring the pie again 🥧", time:"11:05 AM"},
+      {from:"out", type:"text", text:"I'll grab drinks on the way over", time:"11:08 AM"},
+    ]},
+  { id:5, name:"SRUTI", status:"last seen yesterday at 11:47 PM", online:false, unread:0,
+    messages:[
+      {from:"in", type:"text", text:"Sent you the invoice, let me know if it looks right", time:"Sun"},
+    ]},
+];
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function colorFor(name){ let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))>>>0; return colors[h%colors.length]; }
+function initials(name){ return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function nowTime(){ return new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+function escapeHtml(s){ return s.replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch])); }
+function fmtSize(bytes){
+  if(bytes < 1024) return bytes + " B";
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+  return (bytes/1024/1024).toFixed(1) + " MB";
+}
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+const tabLogin = document.getElementById("tabLogin");
+const tabSignup = document.getElementById("tabSignup");
+const fieldName = document.getElementById("fieldName");
+const authSubmit = document.getElementById("authSubmit");
+const authError = document.getElementById("authError");
+
+function setAuthMode(mode){
+  authMode = mode;
+  tabLogin.classList.toggle("active", mode === "login");
+  tabSignup.classList.toggle("active", mode === "signup");
+  fieldName.style.display = mode === "signup" ? "block" : "none";
+  authSubmit.textContent = mode === "signup" ? "Create account" : "Log in";
+  authError.textContent = "";
+}
+tabLogin.onclick = () => setAuthMode("login");
+tabSignup.onclick = () => setAuthMode("signup");
+setAuthMode("login");
+
+authSubmit.onclick = () => {
+  const contact = document.getElementById("authContact").value.trim();
+  const pass = document.getElementById("authPass").value.trim();
+  const name = document.getElementById("authName").value.trim();
+
+  if(!contact || !pass){
+    authError.textContent = "Please fill in your phone/email and password.";
+    return;
+  }
+  if(authMode === "signup" && !name){
+    authError.textContent = "Please tell us your name.";
+    return;
+  }
+  if(pass.length < 4){
+    authError.textContent = "Password must be at least 4 characters.";
+    return;
+  }
+
+  currentUser = { name: authMode === "signup" ? name : (name || contact.split("@")[0] || "You"), contact };
+  authError.textContent = "";
+  document.getElementById("authScreen").style.display = "none";
+  document.getElementById("app").classList.add("ready");
+  document.getElementById("menuName").textContent = currentUser.name;
+  renderList();
+  showToast(`Welcome, ${currentUser.name}!`);
+};
+
+function logout(){
+  currentUser = null;
+  activeId = null;
+  document.getElementById("app").classList.remove("ready", "chat-open");
+  document.getElementById("authScreen").style.display = "flex";
+  document.getElementById("authContact").value = "";
+  document.getElementById("authPass").value = "";
+  document.getElementById("menuDropdown").classList.add("hidden");
+}
+
+/* ============================================================
+   THEME
+   ============================================================ */
+function applyTheme(t){
+  theme = t;
+  document.documentElement.setAttribute("data-theme", t);
+}
+document.getElementById("themeToggle").onclick = () => applyTheme(theme === "light" ? "dark" : "light");
+applyTheme("light");
+
+/* ============================================================
+   MENU DROPDOWN
+   ============================================================ */
+const menuBtn = document.getElementById("menuBtn");
+const menuDropdown = document.getElementById("menuDropdown");
+menuBtn.onclick = (e) => { e.stopPropagation(); menuDropdown.classList.toggle("hidden"); };
+document.addEventListener("click", () => menuDropdown.classList.add("hidden"));
+
+document.getElementById("menuLogout").onclick = logout;
+document.getElementById("menuProfile").onclick = () => showToast(`Signed in as ${currentUser.name} (${currentUser.contact})`);
+document.getElementById("menuNotify").onclick = () => {
+  if(!("Notification" in window)){ showToast("Notifications aren't supported in this browser."); return; }
+  Notification.requestPermission().then(perm => {
+    showToast(perm === "granted" ? "Notifications enabled 🔔" : "Notifications blocked");
+  });
+};
+
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
+function notify(contact, text){
+  if("Notification" in window && Notification.permission === "granted" && document.hidden){
+    try{ new Notification(contact.name, { body: text }); }catch(e){}
+  } else if(activeId !== contact.id){
+    showToast(`${contact.name}: ${text}`);
+  }
+}
+
+/* ============================================================
+   CHAT LIST
+   ============================================================ */
+function lastPreviewText(m){
+  if(m.type === "image") return "📷 Photo";
+  if(m.type === "file") return "📎 " + m.name;
+  return m.text;
+}
+
+function renderList(filter=""){
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  const f = filter.trim().toLowerCase();
+  contacts
+    .filter(c => c.name.toLowerCase().includes(f))
+    .forEach(c => {
+      const last = c.messages[c.messages.length-1];
+      const row = document.createElement("div");
+      row.className = "chat-row" + (c.id===activeId ? " active" : "");
+      row.onclick = () => openChat(c.id);
+      row.innerHTML = `
+        <div class="avatar" style="background:${colorFor(c.name)}">${initials(c.name)}${c.online ? '<span class="dot"></span>' : ''}</div>
+        <div class="chat-info">
+          <div class="row1">
+            <span class="name">${escapeHtml(c.name)}</span>
+            <span class="time">${last.time}</span>
+          </div>
+          <div class="row2">
+            <span class="preview">${last.from==='out' ? '<svg class="ticks" width="15" height="11" viewBox="0 0 16 11" fill="none" stroke="#4FC3F7" stroke-width="1.4"><path d="M1 5.5l3 3 6-7"/><path d="M6 5.5l3 3 6-7"/></svg>' : ''}${escapeHtml(lastPreviewText(last))}</span>
+            ${c.unread ? `<span class="unread">${c.unread}</span>` : ''}
+          </div>
+        </div>`;
+      list.appendChild(row);
+    });
+}
+
+/* ============================================================
+   CHAT VIEW
+   ============================================================ */
+function openChat(id){
+  activeId = id;
+  const c = contacts.find(x => x.id === id);
+  c.unread = 0;
+  document.getElementById("app").classList.add("chat-open");
+  renderList(document.getElementById("searchInput").value);
+
+  const pane = document.getElementById("chatPane");
+  pane.innerHTML = `
+    <div class="chat-header">
+      <button class="icon-btn backBtn" id="backBtn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="avatar" style="background:${colorFor(c.name)}; width:38px; height:38px; font-size:14px;">${initials(c.name)}</div>
+      <div class="grow">
+        <div class="name">${escapeHtml(c.name)}</div>
+        <div class="status" id="statusLine">${c.status}</div>
+      </div>
+      <button class="icon-btn" title="Search"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+    </div>
+    <div id="messages"></div>
+    <div class="composer">
+      <button class="icon-btn" id="emojiBtn" title="Emoji">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8.5 14.5a4 4 0 0 0 7 0"/></svg>
+      </button>
+      <button class="icon-btn" id="attachBtn" title="Attach">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>
+      </button>
+      <input id="msgInput" type="text" placeholder="Type a message" autocomplete="off">
+      <button class="send-btn" id="sendBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </div>`;
+
+  document.getElementById("backBtn").onclick = closeChat;
+  renderMessages(c);
+
+  const input = document.getElementById("msgInput");
+  const send = () => sendMessage(c, input);
+  document.getElementById("sendBtn").onclick = send;
+  input.addEventListener("keydown", e => { if(e.key === "Enter") send(); });
+
+  // emoji picker
+  document.getElementById("emojiBtn").onclick = (e) => {
+    e.stopPropagation();
+    let panel = document.getElementById("emojiPanel");
+    if(panel){ panel.remove(); return; }
+    panel = document.createElement("div");
+    panel.className = "emoji-panel";
+    panel.id = "emojiPanel";
+    panel.innerHTML = EMOJIS.map(em => `<button type="button">${em}</button>`).join("");
+    panel.querySelectorAll("button").forEach(btn => {
+      btn.onclick = (ev) => { ev.stopPropagation(); input.value += btn.textContent; input.focus(); };
+    });
+    document.querySelector(".composer").appendChild(panel);
+  };
+  document.addEventListener("click", () => { const p = document.getElementById("emojiPanel"); if(p) p.remove(); }, { once:true });
+
+  // attach button
+  const fileInput = document.getElementById("fileInput");
+  document.getElementById("attachBtn").onclick = () => fileInput.click();
+  fileInput.onchange = () => {
+    const file = fileInput.files[0];
+    if(!file) return;
+    if(file.type.startsWith("image/")){
+      const reader = new FileReader();
+      reader.onload = () => {
+        c.messages.push({ from:"out", type:"image", src: reader.result, time: nowTime() });
+        renderMessages(c);
+        renderList(document.getElementById("searchInput").value);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      c.messages.push({ from:"out", type:"file", name:file.name, size: fmtSize(file.size), time: nowTime() });
+      renderMessages(c);
+      renderList(document.getElementById("searchInput").value);
+    }
+    fileInput.value = "";
+  };
+}
+
+function bubbleContent(m){
+  if(m.type === "image"){
+    return `<img class="msg-img" src="${m.src}" alt="photo">`;
+  }
+  if(m.type === "file"){
+    return `<div class="file-card">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+      <div><div class="fname">${escapeHtml(m.name)}</div><div class="fsize">${m.size}</div></div>
+    </div>`;
+  }
+  return escapeHtml(m.text);
+}
+
+function renderMessages(c){
+  const box = document.getElementById("messages");
+  if(!box) return;
+  box.innerHTML = `<div class="day-divider">Today</div>`;
+  c.messages.forEach(m => {
+    const b = document.createElement("div");
+    b.className = "bubble " + m.from;
+    const ticks = m.from==='out' ? ' <svg width="15" height="11" viewBox="0 0 16 11" fill="none" stroke="#4FC3F7" stroke-width="1.4"><path d="M1 5.5l3 3 6-7"/><path d="M6 5.5l3 3 6-7"/></svg>' : '';
+    b.innerHTML = `${bubbleContent(m)}<span class="meta">${m.time}${ticks}</span>`;
+    box.appendChild(b);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function sendMessage(c, input){
+  const text = input.value.trim();
+  if(!text) return;
+  c.messages.push({ from:"out", type:"text", text, time: nowTime() });
+  input.value = "";
+  renderMessages(c);
+  renderList(document.getElementById("searchInput").value);
+
+  // simulated typing + reply, for demo purposes (no real backend connected)
+  const box = document.getElementById("messages");
+  const typingEl = document.createElement("div");
+  typingEl.className = "typing-indicator";
+  typingEl.id = "typingIndicator";
+  typingEl.innerHTML = "<span></span><span></span><span></span>";
+  setTimeout(() => { if(box && activeId === c.id){ box.appendChild(typingEl); box.scrollTop = box.scrollHeight; } }, 400);
+
+  setTimeout(() => {
+    const replies = ["Got it 👍","Sounds good!","Haha true","Let me check and get back to you","Nice, thanks for the update!"];
+    const replyText = replies[Math.floor(Math.random()*replies.length)];
+    c.messages.push({ from:"in", type:"text", text: replyText, time: nowTime() });
+    document.getElementById("typingIndicator")?.remove();
+    if(activeId === c.id){ renderMessages(c); }
+    renderList(document.getElementById("searchInput").value);
+    notify(c, replyText);
+  }, 1600 + Math.random()*1000);
+}
+
+function closeChat(){
+  document.getElementById("app").classList.remove("chat-open");
+  activeId = null;
+  renderList(document.getElementById("searchInput").value);
+}
+
+document.getElementById("searchInput")?.addEventListener("input", e => renderList(e.target.value));
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("searchInput").addEventListener("input", e => renderList(e.target.value));
+});
+</script>
+</body>
+</html>
